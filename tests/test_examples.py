@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from range_merge import merge, merge_discrete
+from ipaddress import IPv4Address, IPv4Network, IPv6Address, IPv6Network
+from range_merge import merge, merge_discrete, merge_ip_ranges, merge_cidr_ranges
 
 
 def test_quickstart():
@@ -11,7 +12,7 @@ def test_quickstart():
     result = merge(ranges)
     assert result == [(1, 8), (10, 15)]
 
-    # Merge / Compcat ranges with an attribute
+    # Merge / Compact ranges with an attribute
     ranges = [(1, 10, "foo"), (3, 8, "bar")]
     result = merge(ranges, use_attr=True)
     assert result == [(1, 2, "foo"), (3, 8, "bar"), (9, 10, "foo")]
@@ -89,4 +90,58 @@ def test_custom_class():
         ProductGroup(58, 99, "soup"),
         ProductGroup(100, 199, "cereal"),
     ]
+    assert result == expected
+
+
+def test_merge_ip_ranges():
+    """Test IP range merge example."""
+    src = [
+        ("1.0.0.0", "1.255.240.0", "foo"),
+        ("1.255.240.1", "2.0.255.255", "foo"),
+        ("2000::", "2fff:ffff:ffff:ffff:ffff:ffff:ffff:ffff", "foo"),
+        ("3000::", "3fff:ffff:ffff:ffff:ffff:ffff:ffff:ffff", "foo"),
+    ]
+
+    result = merge_ip_ranges(src)
+
+    expected = [
+        (IPv4Address("1.0.0.0"), IPv4Address("2.0.255.255"), "foo"),
+        (IPv6Address("2000::"), IPv6Address("3fff:ffff:ffff:ffff:ffff:ffff:ffff:ffff"), "foo"),
+    ]
+
+    assert result == expected
+
+
+def test_merge_cidr_ranges():
+    """Test CIDR range merge example."""
+    src = [
+        ("1.0.0.0/8", "foo"),
+        ("1.255.240.0/24", "bar"),
+        ("2000::/4", "foo"),
+        ("3000::/4", "foo"),
+    ]
+
+    result = merge_cidr_ranges(src)
+
+    expected = [
+        (IPv4Network("1.0.0.0/9"), "foo"),
+        (IPv4Network("1.128.0.0/10"), "foo"),
+        (IPv4Network("1.192.0.0/11"), "foo"),
+        (IPv4Network("1.224.0.0/12"), "foo"),
+        (IPv4Network("1.240.0.0/13"), "foo"),
+        (IPv4Network("1.248.0.0/14"), "foo"),
+        (IPv4Network("1.252.0.0/15"), "foo"),
+        (IPv4Network("1.254.0.0/16"), "foo"),
+        (IPv4Network("1.255.0.0/17"), "foo"),
+        (IPv4Network("1.255.128.0/18"), "foo"),
+        (IPv4Network("1.255.192.0/19"), "foo"),
+        (IPv4Network("1.255.224.0/20"), "foo"),
+        (IPv4Network("1.255.240.0/24"), "bar"),
+        (IPv4Network("1.255.241.0/24"), "foo"),
+        (IPv4Network("1.255.242.0/23"), "foo"),
+        (IPv4Network("1.255.244.0/22"), "foo"),
+        (IPv4Network("1.255.248.0/21"), "foo"),
+        (IPv6Network("2000::/3"), "foo"),
+    ]
+
     assert result == expected

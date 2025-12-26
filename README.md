@@ -31,7 +31,7 @@ ranges = [(1, 5), (3, 8), (10, 15)]
 result = merge(ranges)
 # Result: [(1, 8), (10, 15)]
 
-# Merge / Compcat ranges with an attribute
+# Merge / Compact ranges with an attribute
 ranges = [(1, 10, "foo"), (3, 8, "bar")]
 result = merge(ranges, use_attr=True)
 # Result: [(1, 2, "foo"), (3, 8, "bar"), (9, 10, "foo")]
@@ -114,7 +114,7 @@ terms = [
 ]
 
 def to_date(x):
-    return datetime.strptime(x, "2/1/2025")
+    return datetime.strptime(x, "%m/%d/%Y")
 
 def to_str(x):
     return f"{x.month}/{x.day}/{x.year}"   # strftime adds leading
@@ -173,7 +173,7 @@ products = [
     ProductGroup(low=0, high=99, group="soup"),
     ProductGroup(low=57, high=57, group="cereal"),
     ProductGroup(low=100, high=199, group="cereal"),
-]   
+]
 
 result = merge(
     products,
@@ -188,6 +188,75 @@ result = merge(
 #   ProductGroup(58, 99, "soup"),
 #   ProductGroup(100, 199, "cereal")
 ]
+```
+
+#### Merging IP Ranges
+
+If you want to merge a list of IP ranges, you can use `merge_ip_ranges`.
+See the next section for CIDR ranges rather than IP ranges.
+
+There is no option to merge IP ranges without attributes (attributes
+must match to merge), as Python's `ipaddress.collapse_addresses()` handles
+this functionality.
+
+```
+from ipaddress import IPv4Address, IPv6Address
+from range_merge import merge_ip_ranges
+
+src = [
+    ("1.0.0.0", "1.255.240.0", "foo"),
+    ("1.255.240.1", "2.0.255.255", "foo"),
+    ("2000::", "2fff:ffff:ffff:ffff:ffff:ffff:ffff:ffff", "foo"),
+    ("3000::", "3fff:ffff:ffff:ffff:ffff:ffff:ffff:ffff", "foo"),
+]
+
+result = merge_ip_ranges(src)
+# Result: [
+#   (IPv4Address("1.0.0.0"), IPv4Address("2.0.255.255"), "foo"),
+#   (IPv6Address("2000::"), IPv6Address("3fff:ffff:ffff:ffff:ffff:ffff:ffff:ffff"), "foo"),
+# ]
+```
+
+#### Merging CIDR Ranges
+
+If you want to merge a list of CIDR ranges, you can use `merge_cidr_ranges`.
+
+There is no option to merge CIDR ranges without attributes (attributes
+must match to merge), as Python's `ipaddress.collapse_addresses()` handles
+this functionality.
+
+```
+from ipaddress import IPv4Network, IPv6Network
+from range_merge import merge_cidr_ranges
+
+src = [
+    ("1.0.0.0/8", "foo"),
+    ("1.255.240.0/24", "bar"),
+    ("2000::/4", "foo"),
+    ("3000::/4", "foo"),
+]
+
+result = merge_cidr_ranges(src)
+# Result: [
+#   (IPv4Network("1.0.0.0/9"), "foo"),
+#   (IPv4Network("1.128.0.0/10"), "foo"),
+#   (IPv4Network("1.192.0.0/11"), "foo"),
+#   (IPv4Network("1.224.0.0/12"), "foo"),
+#   (IPv4Network("1.240.0.0/13"), "foo"),
+#   (IPv4Network("1.248.0.0/14"), "foo"),
+#   (IPv4Network("1.252.0.0/15"), "foo"),
+#   (IPv4Network("1.254.0.0/16"), "foo"),
+#   (IPv4Network("1.255.0.0/17"), "foo"),
+#   (IPv4Network("1.255.128.0/18"), "foo"),
+#   (IPv4Network("1.255.192.0/19"), "foo"),
+#   (IPv4Network("1.255.224.0/20"), "foo"),
+#   (IPv4Network("1.255.240.0/24"), "bar"),
+#   (IPv4Network("1.255.241.0/24"), "foo"),
+#   (IPv4Network("1.255.242.0/23"), "foo"),
+#   (IPv4Network("1.255.244.0/22"), "foo"),
+#   (IPv4Network("1.255.248.0/21"), "foo"),
+#   (IPv6Network("2000::/3"), "foo"),
+# ]
 ```
 
 ## API Reference
@@ -205,7 +274,7 @@ Merge a sequence of ranges.
 | `end` | `Callable` | `lambda r: r[1]` | Extract end value from a range |
 | `before` | `Callable` | `lambda x: x - 1` | Return the value before x |
 | `after` | `Callable` | `lambda x: x + 1` | Return the value after x |
-| `new` | `Callable` | Creates tuple | Create a new range from (start, end, attr) |
+| `new` | `Callable` | Creates range object | Create a new range from (start, end, attr) |
 | `attr` | `Callable` | `lambda r: r[2]` | Extract attribute from a range |
 | `use_attr` | `bool` | `False` | Whether to use attributes (if no attr is provided when calling) |
 | `cmp` | `Callable` | Default comparator | Custom comparison function |
@@ -238,11 +307,57 @@ For details on `before`, `after`, and `cmp`, see the `merge()` section.
 
 **Returns:** list of `(start, end)` tuples.
 
+### `merge_ip_ranges(values, **options)`
+
+Merge a sequence of ip range values into consolidated ranges.
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `ranges` | `Sequence` | required | The IP ranges to merge |
+| `start` | `Callable` | `lambda r: r[0]` | Return the starting IP address in the range |
+| `end` | `Callable` | `lambda r: r[1]` | Return the ending IP address in the range |
+| `new` | `Callable` | Creates range object | Create a new range from (start, end, attr) |
+| `attr` | `Callable` | `lambda r: r[2]` | Extract attribute from a range |
+
+For details on `start`, `end`, and `attr` see the `merge()` section.
+
+**Returns:** list of IP ranges.  All addresses are converted to either an
+`IPv4Address` or an `IPv6Address`
+
+
+### `merge_cidr_ranges(values, **options)`
+
+Merge a sequence of CIDR range values into consolidated ranges.
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `ranges` | `Sequence` | required | The CIDR ranges to merge |
+| `new` | `Callable` | Creates range object | Create a new range from (CIDR, attr) |
+| `cidr` | `Callable` | `lambda : r[0]` | Return the CIDR in the range |
+| `attr` | `Callable` | `lambda r: r[1]` | Extract attribute from a range |
+
+The `cidr` callable takes a single argument, the range
+object being used.
+
+The `new` callable takes two parameters (cidr, attr).
+
+For details on `attr` see the `merge()` section.
+
+**Returns:** list of IP network.  All addresses are converted to either
+an `IPv4Network` or an `IPv6Network`
+
 ### Exceptions
 
 - `ImproperRangeEndBeforeStart`: Raised when a range has an end value that
   comes before its start value (using the default or custom `cmp`
   callable)
+
+- `MismatchedIPAddressFamilies`: This is thrown if, within one IP range, the
+  start and end IP addresses are not both in the same address families.
 
 ## License
 
